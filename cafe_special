@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>카페 주문 5단계 연습 — 카드형(이미지 포함)</title>
+<style>
+  :root{
+    --bg:#f7fafc; --panel:#ffffff; --fg:#0f172a; --primary:#2563eb; --accent:#10b981; --error:#ef4444; --muted:#64748b;
+    --ring:#93c5fd; --card:#f8fafc; --border:#e5e7eb;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:var(--bg); color:var(--fg);
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, 'Noto Sans KR', Arial, sans-serif;
+    line-height:1.5; display:flex; align-items:center; justify-content:center; padding:16px;
+  }
+  .app{
+    width:min(980px, 100%); background:var(--panel); border-radius:24px; box-shadow:0 10px 35px rgba(0,0,0,.08);
+    padding:20px;
+  }
+  header{display:flex; flex-wrap:wrap; align-items:center; gap:12px; justify-content:space-between}
+  h1{font-size:1.25rem; margin:0}
+  .status{display:flex; gap:12px; flex-wrap:wrap; align-items:center}
+  .badge,.score{
+    padding:8px 12px; border-radius:999px; font-weight:800; font-size:.95rem;
+  }
+  .badge{background:#eef2ff; color:#3730a3}
+  .score{background:#ecfeff; color:#0e7490}
+  .tts-wrap{display:flex; gap:8px; align-items:center}
+  .btn{
+    border:0; border-radius:14px; padding:10px 14px; font-weight:800; cursor:pointer; background:#f1f5f9; color:#0f172a;
+  }
+  .btn[aria-pressed="true"]{background:#dcfce7; color:#065f46}
+  .grid{margin-top:16px; display:grid; gap:16px}
+  .card{
+    background:var(--card); border:1px solid var(--border); border-radius:20px; padding:16px;
+    display:grid; grid-template-columns: 220px 1fr; gap:16px;
+  }
+  @media (max-width:720px){
+    .card{grid-template-columns: 1fr}
+  }
+  .visual{
+    background:#fff; border:1px solid var(--border); border-radius:16px; padding:12px; display:flex; align-items:center; justify-content:center;
+  }
+  figure{margin:0; width:100%}
+  .prompt-box{display:grid; gap:8px}
+  .title{font-weight:900; font-size:1.1rem}
+  .prompt{font-size:1.05rem}
+  .options{display:grid; gap:12px; margin-top:4px}
+  .option{
+    font-size:1.05rem; text-align:left; border:2px solid transparent; background:white;
+    padding:16px; border-radius:16px; cursor:pointer; font-weight:800; display:flex; gap:10px; align-items:center;
+  }
+  .option:focus{outline:3px solid var(--ring); outline-offset:2px}
+  .option[data-choice="A"]::before{content:"A"; font-weight:900; padding:6px 10px; border-radius:10px; background:#eff6ff; color:#1e3a8a}
+  .option[data-choice="B"]::before{content:"B"; font-weight:900; padding:6px 10px; border-radius:10px; background:#fff7ed; color:#9a3412}
+  .option.correct{border-color:var(--accent); box-shadow:0 0 0 4px #d1fae5 inset}
+  .option.wrong{border-color:var(--error); box-shadow:0 0 0 4px #fee2e2 inset}
+  .feedback{font-weight:900; font-size:1rem; margin-top:6px}
+  .feedback.ok{color:#047857}
+  .feedback.no{color:#b91c1c}
+  .control{display:flex; gap:10px; flex-wrap:wrap; justify-content:space-between; align-items:center}
+  .next{background:var(--primary); color:white; font-weight:900; padding:12px 18px; border-radius:14px; border:0; cursor:pointer}
+  .next[disabled]{background:#cbd5e1; cursor:not-allowed}
+  .result{
+    text-align:center; padding:18px; border-radius:16px; background:#f0f9ff; border:1px solid #e0f2fe;
+  }
+  .sr-only{position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0}
+</style>
+</head>
+<body>
+<main class="app" role="application" aria-label="카페 주문 5단계 연습 앱(카드형)">
+  <header>
+    <h1>카페 주문 5단계 연습</h1>
+    <div class="status" aria-live="polite">
+      <span id="stepBadge" class="badge">1 / 5</span>
+      <span id="scoreBadge" class="score">점수 0</span>
+      <div class="tts-wrap">
+        <button id="ttsToggle" type="button" class="btn" aria-pressed="false" title="음성 읽기 켜기/끄기">🔊 음성 읽기</button>
+        <button id="speakBtn" type="button" class="btn" title="문장 읽기">▶ 읽어주기</button>
+      </div>
+    </div>
+  </header>
+
+  <section class="grid">
+    <article id="card" class="card" aria-live="polite">
+      <div class="visual" aria-hidden="false">
+        <figure id="figure" aria-label="단계 안내 그림">
+          <!-- 여기에 단계별 SVG가 동적으로 들어갑니다 -->
+        </figure>
+      </div>
+      <div class="prompt-box">
+        <div id="title" class="title">로딩 중…</div>
+        <div id="prompt" class="prompt">로딩 중…</div>
+        <div class="options">
+          <button id="optA" class="option" data-choice="A"></button>
+          <button id="optB" class="option" data-choice="B"></button>
+        </div>
+        <div id="feedback" class="feedback" aria-live="assertive"></div>
+      </div>
+    </article>
+
+    <div class="control">
+      <div class="left">
+        <button id="restart" type="button" class="btn" title="처음부터 다시">↺ 다시 시작</button>
+        <button id="repeat" type="button" class="btn" title="같은 단계 다시 듣기">🔁 다시 듣기</button>
+      </div>
+      <button id="next" class="next" type="button" disabled>다음 단계 ▶</button>
+    </div>
+
+    <div id="result" class="result" hidden></div>
+  </section>
+</main>
+
+<script>
+/** 개인정보/보안: 외부 요청/추적/저장 없음 **/
+
+// 단계별 카드 이미지(SVG) — 외부 파일 불필요
+const ICONS = {
+  hello: `
+  <svg width="100%" viewBox="0 0 240 180" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="카페에서 인사">
+    <rect x="0" y="0" width="240" height="180" rx="16" fill="#f8fafc" stroke="#e5e7eb"/>
+    <circle cx="70" cy="80" r="28" fill="#bfdbfe"/>
+    <rect x="44" y="110" width="52" height="34" rx="10" fill="#93c5fd"/>
+    <rect x="145" y="40" width="50" height="60" rx="10" fill="#fde68a"/>
+    <rect x="140" y="110" width="60" height="10" rx="5" fill="#f59e0b"/>
+    <text x="120" y="165" text-anchor="middle" font-family="sans-serif" font-weight="800" fill="#334155">안녕하세요!</text>
+  </svg>`,
+  order: `
+  <svg width="100%" viewBox="0 0 240 180" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="음료 주문">
+    <rect x="0" y="0" width="240" height="180" rx="16" fill="#f8fafc" stroke="#e5e7eb"/>
+    <rect x="40" y="40" width="160" height="24" rx="6" fill="#e2e8f0"/>
+    <rect x="40" y="72" width="160" height="24" rx="6" fill="#e2e8f0"/>
+    <rect x="40" y="104" width="160" height="24" rx="6" fill="#e2e8f0"/>
+    <g transform="translate(160,80)">
+      <rect x="-18" y="-40" width="36" height="64" rx="8" fill="#bbf7d0"/>
+      <rect x="-18" y="24" width="36" height="8" rx="4" fill="#86efac"/>
+    </g>
+    <text x="120" y="165" text-anchor="middle" font-family="sans-serif" font-weight="800" fill="#334155">아메리카노 한 잔 주세요</text>
+  </svg>`,
+  icehot: `
+  <svg width="100%" viewBox="0 0 240 180" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="뜨거움/차가움 선택">
+    <defs>
+      <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#93c5fd"/><stop offset="100%" stop-color="#bfdbfe"/>
+      </linearGradient>
+      <linearGradient id="g2" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#fca5a5"/><stop offset="100%" stop-color="#fecaca"/>
+      </linearGradient>
+    </defs>
+    <rect x="0" y="0" width="240" height="180" rx="16" fill="#f8fafc" stroke="#e5e7eb"/>
+    <rect x="30" y="40" width="80" height="80" rx="12" fill="url(#g1)"/>
+    <rect x="130" y="40" width="80" height="80" rx="12" fill="url(#g2)"/>
+    <text x="70" y="140" text-anchor="middle" font-family="sans-serif" font-weight="800" fill="#1d4ed8">ICE</text>
+    <text x="170" y="140" text-anchor="middle" font-family="sans-serif" font-weight="800" fill="#b91c1c">HOT</text>
+  </svg>`,
+  pay: `
+  <svg width="100%" viewBox="0 0 240 180" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="결제">
+    <rect x="0" y="0" width="240" height="180" rx="16" fill="#f8fafc" stroke="#e5e7eb"/>
+    <rect x="40" y="60" width="160" height="90" rx="12" fill="#ddd6fe"/>
+    <rect x="56" y="90" width="60" height="10" rx="5" fill="#c4b5fd"/>
+    <rect x="56" y="108" width="96" height="10" rx="5" fill="#c4b5fd"/>
+    <rect x="116" y="48" width="70" height="40" rx="8" fill="#86efac" />
+    <text x="151" y="73" text-anchor="middle" font-family="sans-serif" font-weight="900" fill="#065f46">CARD</text>
+  </svg>`,
+  thanks: `
+  <svg width="100%" viewBox="0 0 240 180" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="감사 인사">
+    <rect x="0" y="0" width="240" height="180" rx="16" fill="#f8fafc" stroke="#e5e7eb"/>
+    <circle cx="70" cy="80" r="26" fill="#fde68a"/>
+    <path d="M48 108c20-8 44-8 64 0" stroke="#f59e0b" stroke-width="6" fill="none" stroke-linecap="round"/>
+    <text x="170" y="88" text-anchor="middle" font-family="sans-serif" font-weight="900" fill="#111827">감사합니다!</text>
+  </svg>`
+};
+
+// 학습 시나리오 — 텍스트와 시각 요소 연결
+const STEPS = [
+  {
+    id: 1,
+    title: "1단계: 인사하기",
+    prompt: "카페에 들어왔어요. 처음에 뭐라고 말할까요?",
+    A: "안녕하세요.",
+    B: "야, 빨리요.",
+    correct: "A",
+    feedbackOk: "좋아! 밝고 공손한 인사로 시작해요.",
+    feedbackNo: "‘빨리요’는 명령처럼 들려요. 먼저 공손히 인사해요.",
+    image: ICONS.hello,
+    alt: "카페에서 서로 인사하는 모습의 단순 일러스트"
+  },
+  {
+    id: 2,
+    title: "2단계: 주문 말하기",
+    prompt: "이제 음료를 주문해요. 어떤 문장이 더 알맞을까요?",
+    A: "아메리카노 한 잔 주세요.",
+    B: "그냥 아무거나요.",
+    correct: "A",
+    feedbackOk: "정확하고 간단하게 주문했어요.",
+    feedbackNo: "‘아무거나’는 결정이 어려워요. 원하는 메뉴를 또박또박 말해요.",
+    image: ICONS.order,
+    alt: "메뉴 보드와 일회용 컵 아이콘이 있는 주문 일러스트"
+  },
+  {
+    id: 3,
+    title: "3단계: 옵션 선택하기",
+    prompt: "바리스타가 ‘뜨거운 음료로 드릴까요, 차가운 음료로 드릴까요?’라고 물었어요.",
+    A: "차가운 걸로 주세요.",
+    B: "몰라요.",
+    correct: "A",
+    feedbackOk: "본인의 선택을 분명히 말했어요.",
+    feedbackNo: "모르면 다시 물어보거나 한 가지를 골라요.",
+    image: ICONS.icehot,
+    alt: "ICE와 HOT을 나타내는 파란/빨간 카드 일러스트"
+  },
+  {
+    id: 4,
+    title: "4단계: 결제 방식 말하기",
+    prompt: "이제 결제해요. 어떤 말이 알맞을까요?",
+    A: "현금 없어요.",
+    B: "카드로 결제할게요.",
+    correct: "B",
+    feedbackOk: "좋아! 결제 방식을 또렷하게 말했어요.",
+    feedbackNo: "‘없어요’보다는 ‘카드로/모바일로 결제할게요’처럼 방법을 말해요.",
+    image: ICONS.pay,
+    alt: "신용카드와 영수증이 보이는 결제 일러스트"
+  },
+  {
+    id: 5,
+    title: "5단계: 마무리 인사하기",
+    prompt: "음료를 받았어요. 마지막으로 뭐라고 할까요?",
+    A: "감사합니다.",
+    B: "끝.",
+    correct: "A",
+    feedbackOk: "멋진 마무리! 감사 인사를 잊지 않았어요.",
+    feedbackNo: "간단해도 ‘감사합니다’가 좋아요.",
+    image: ICONS.thanks,
+    alt: "미소와 함께 ‘감사합니다’ 문구가 있는 일러스트"
+  }
+];
+
+// 상태
+let stepIndex = 0;
+let score = 0;
+let locked = false;
+
+// 요소
+const stepBadge = document.getElementById('stepBadge');
+const scoreBadge = document.getElementById('scoreBadge');
+const titleEl = document.getElementById('title');
+const promptEl  = document.getElementById('prompt');
+const optA = document.getElementById('optA');
+const optB = document.getElementById('optB');
+const feedbackEl = document.getElementById('feedback');
+const nextBtn = document.getElementById('next');
+const restartBtn = document.getElementById('restart');
+const repeatBtn = document.getElementById('repeat');
+const resultEl = document.getElementById('result');
+const ttsToggle = document.getElementById('ttsToggle');
+const speakBtn = document.getElementById('speakBtn');
+const figure = document.getElementById('figure');
+
+// 렌더링
+function render(){
+  const s = STEPS[stepIndex];
+  stepBadge.textContent = `${stepIndex+1} / ${STEPS.length}`;
+  scoreBadge.textContent = `점수 ${score}`;
+  titleEl.textContent = s.title;
+  promptEl.textContent = s.prompt;
+  optA.textContent = s.A; optB.textContent = s.B;
+  optA.className = 'option'; optB.className = 'option';
+  feedbackEl.textContent = ''; feedbackEl.className = 'feedback';
+  nextBtn.disabled = true; locked = false; resultEl.hidden = true;
+
+  // 이미지/대체텍스트 주입
+  figure.innerHTML = s.image;
+  figure.setAttribute('aria-label', s.alt || '단계 안내 그림');
+}
+
+function endScreen(){
+  document.querySelector('.card').setAttribute('aria-live','off');
+  resultEl.hidden = false;
+  const total = STEPS.length;
+  const percent = Math.round((score/total)*100);
+  let msg = '';
+  if(percent === 100) msg = "완벽해! 실제 상황에서도 이렇게 주문해보자.";
+  else if(percent >= 80) msg = "아주 좋아! 몇 가지만 더 연습하면 완성.";
+  else if(percent >= 60) msg = "나쁘지 않아. 한 번만 더 해보자.";
+  else msg = "시작이 좋아. 다시 연습해서 더 익숙해지자.";
+
+  resultEl.innerHTML = `
+    <div role="status" aria-live="polite">
+      <h2 style="margin:0 0 6px 0;">결과</h2>
+      <p style="margin:6px 0 10px 0; font-weight:800; font-size:1.1rem">총점 ${score} / ${total} (${percent}%)</p>
+      <p style="margin:0; color:var(--muted)">${msg}</p>
+    </div>
+  `;
+}
+
+// 선택 처리
+function handleChoice(choiceBtn){
+  if(locked) return;
+  const s = STEPS[stepIndex];
+  const chosen = choiceBtn === optA ? 'A' : 'B';
+  const isOk = (chosen === s.correct);
+  locked = true;
+
+  if(isOk){
+    choiceBtn.classList.add('correct');
+    feedbackEl.textContent = s.feedbackOk;
+    feedbackEl.classList.add('ok');
+    score += 1;
+    scoreBadge.textContent = `점수 ${score}`;
+  }else{
+    choiceBtn.classList.add('wrong');
+    feedbackEl.textContent = s.feedbackNo;
+    feedbackEl.classList.add('no');
+    (s.correct === 'A' ? optA : optB).classList.add('correct');
+  }
+  nextBtn.disabled = false;
+  if(ttsEnabled) speak(feedbackEl.textContent);
+}
+
+// 내비게이션
+nextBtn.addEventListener('click', ()=>{
+  if(stepIndex < STEPS.length-1){
+    stepIndex++; render();
+    if(ttsEnabled) speakCurrent();
+  }else{
+    endScreen();
+  }
+});
+restartBtn.addEventListener('click', ()=>{
+  stepIndex = 0; score = 0; render();
+  if(ttsEnabled) speakCurrent();
+});
+repeatBtn.addEventListener('click', ()=>{
+  if(ttsEnabled) speakCurrent();
+});
+
+// 키보드 접근성: A/B 키, Enter로 다음
+document.addEventListener('keydown', (e)=>{
+  const k = e.key.toUpperCase();
+  if(k === 'A' || k === 'B'){
+    (k==='A'?optA:optB).focus();
+    (k==='A'?optA:optB).click();
+  }else if(e.key === 'Enter'){
+    if(!nextBtn.disabled) nextBtn.click();
+  }
+});
+
+// 음성(TTS)
+let ttsEnabled = false;
+let voiceKo = null;
+
+function pickKoreanVoice() {
+  const voices = window.speechSynthesis.getVoices();
+  voiceKo = voices.find(v => /ko/i.test(v.lang)) || voices.find(v => /Korean|한국어/.test(v.name)) || null;
+}
+function speak(text){
+  if(!ttsEnabled || !('speechSynthesis' in window)) return;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  if(voiceKo) u.voice = voiceKo;
+  u.lang = voiceKo?.lang || 'ko-KR';
+  u.rate = 1;
+  window.speechSynthesis.speak(u);
+}
+function speakCurrent(){
+  const s = STEPS[stepIndex];
+  const text = `${s.title}. ${s.prompt} 선택지 A. ${s.A}. 선택지 B. ${s.B}.`;
+  speak(text);
+}
+ttsToggle.addEventListener('click', ()=>{
+  ttsEnabled = !ttsEnabled;
+  ttsToggle.setAttribute('aria-pressed', String(ttsEnabled));
+  if(ttsEnabled) speakCurrent(); else window.speechSynthesis.cancel();
+});
+speakBtn.addEventListener('click', ()=> { if(ttsEnabled) speakCurrent(); });
+if('speechSynthesis' in window){
+  window.speechSynthesis.onvoiceschanged = () => { pickKoreanVoice(); };
+  pickKoreanVoice();
+}
+
+// 바인딩 & 초기 렌더
+optA.addEventListener('click', ()=>handleChoice(optA));
+optB.addEventListener('click', ()=>handleChoice(optB));
+render();
+</script>
+</body>
+</html>
